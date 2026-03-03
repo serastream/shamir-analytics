@@ -10,3 +10,4 @@ scikit-learn
 networkx
 python-telegram-bot
 reportlab
+st-aggrid
