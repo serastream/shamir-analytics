@@ -1,0 +1,11 @@
+streamlit
+pandas
+numpy
+plotly
+seaborn
+matplotlib
+openpyxl
+openai
+scikit-learn
+networkx
+python-telegram-bot
