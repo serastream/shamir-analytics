@@ -9,3 +9,4 @@ openai
 scikit-learn
 networkx
 python-telegram-bot
+reportlab
