@@ -8,7 +8,6 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from school_analysis.analytics import diagnostics, comparison
 from school_analysis.core.utils import format_delta
 from school_analysis.core.attendance import attendance_widget
-from school_analysis.analytics.teacher_kpi import show_teacher_kpi
 #from school_analysis.analytics.forecast_utils import add_forecast_line
 
 # ============================================================ #
@@ -843,4 +842,3 @@ def show_analytics(df: pd.DataFrame, data: dict):
 
         st.plotly_chart(fig_trend, use_container_width=True)
 
-    show_teacher_kpi(df)

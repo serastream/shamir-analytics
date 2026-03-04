@@ -843,4 +843,3 @@ def show_analytics(df: pd.DataFrame, data: dict):
 
         st.plotly_chart(fig_trend, use_container_width=True)
 
-    show_teacher_kpi(df)
