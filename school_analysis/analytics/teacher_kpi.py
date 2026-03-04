@@ -2,119 +2,90 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-def show_teacher_kpi(df: pd.DataFrame):
-    """
-    Отображает интерфейс рейтинга учителей на основе KPI.
-    KPI = (Средний балл * 0.4) + (Прогресс за месяц * 3) + (% учеников вне риска * 0.3)
-    """
-    st.markdown("## 🏆 Рейтинг эффективности преподавателей")
+def show_teacher_kpi(df):
+    st.markdown("## 🏆 Рейтинг эффективности учителей")
     
     if df.empty:
-        st.warning("Недостаточно данных для расчета KPI.")
+        st.warning("Нет данных для расчета KPI.")
         return
 
-    # 1. Подготовка данных
-    # Берем два последних месяца для расчета прогресса
-    months = sorted(df['month_id'].unique())
-    if len(months) < 1:
-        st.error("В данных отсутствуют метки месяцев (month_id).")
-        return
+    # --- БЛОК ФИЛЬТРОВ ---
+    col_f1, col_f2 = st.columns(2)
+    
+    with col_f1:
+        # Получаем список месяцев из данных
+        month_map = {row['month_id']: row['month'] for _, row in df[['month_id', 'month']].drop_duplicates().iterrows()}
+        sorted_month_ids = sorted(month_map.keys())
+        month_options = ["За всё время"] + [month_map[mid] for mid in sorted_month_ids]
+        
+        selected_month_name = st.selectbox("📅 Выберите период для анализа:", month_options)
 
-    last_m = months[-1]
-    prev_m = months[-2] if len(months) > 1 else last_m
-
+    # --- ЛОГИКА ФИЛЬТРАЦИИ ---
     teachers = df['teacher'].unique()
     kpi_results = []
 
     for teacher in teachers:
-        t_df = df[df['teacher'] == teacher]
+        if pd.isna(teacher) or teacher == "Не указан": continue
         
-        # Данные за текущий и прошлый месяц
-        curr_data = t_df[t_df['month_id'] == last_m]
-        prev_data = t_df[t_df['month_id'] == prev_m]
-        
-        if curr_data.empty:
-            continue
+        t_data_all = df[df['teacher'] == teacher]
+        if t_data_all.empty: continue
 
-        # --- КРИТЕРИЙ 1: Средний результат (%) ---
-        avg_score = curr_data['task_percent'].mean()
-        
-        # --- КРИТЕРИЙ 2: Дельта прогресса ---
-        prev_avg = prev_data['task_percent'].mean() if not prev_data.empty else avg_score
-        delta = avg_score - prev_avg
-        
-        # --- КРИТЕРИЙ 3: Работа с зоной риска (% учеников > 33 баллов) ---
-        # Показывает, сколько учеников учитель "вытянул" из зоны двойки
-        safe_zone_pct = (curr_data['task_percent'] > 33).mean() * 100
-        
-        # --- ИТОГОВЫЙ KPI ---
-        # Мы даем большой вес Прогрессу (x3), чтобы поощрять рост, а не просто высокий старт
-        kpi_score = (avg_score * 0.4) + (delta * 3) + (safe_zone_pct * 0.3)
-        
-        # Ограничиваем шкалой 0-100 для красоты
-        kpi_score = max(0, min(100, kpi_score))
+        # Определяем, какие данные берем для расчета "Текущего" состояния
+        if selected_month_name == "За всё время":
+            current_avg = t_data_all['task_percent'].mean()
+            # Сравниваем с самым первым месяцем (базой)
+            first_month_id = sorted(t_data_all['month_id'].unique())[0]
+            base_avg = t_data_all[t_data_all['month_id'] == first_month_id]['task_percent'].mean()
+            progress = current_avg - base_avg
+            period_label = "Весь период"
+        else:
+            # Ищем ID выбранного месяца
+            curr_month_id = [mid for mid, name in month_map.items() if name == selected_month_name][0]
+            t_data_month = t_data_all[t_data_all['month_id'] == curr_month_id]
+            
+            if t_data_month.empty: continue # Пропускаем, если у учителя нет данных за этот месяц
+            
+            current_avg = t_data_month['task_percent'].mean()
+            
+            # Ищем предыдущий месяц для этого учителя
+            prev_months = [mid for mid in t_data_all['month_id'].unique() if mid < curr_month_id]
+            if prev_months:
+                prev_month_id = max(prev_months)
+                prev_avg = t_data_all[t_data_all['month_id'] == prev_month_id]['task_percent'].mean()
+                progress = current_avg - prev_avg
+            else:
+                progress = 0
+            period_label = selected_month_name
 
         kpi_results.append({
-            "Преподаватель": teacher,
-            "KPI": round(kpi_score, 1),
-            "Ср. балл": round(avg_score, 1),
-            "Прогресс": round(delta, 1),
-            "Вне риска %": round(safe_zone_pct, 1),
-            "Статус": "🔥 Рост" if delta > 2 else "↘️ Спад" if delta < -2 else "➡️ Стабильно"
+            "Учитель": teacher,
+            "Средний %": round(current_avg, 1),
+            "Динамика": round(progress, 1),
+            "KPI Score": round((current_avg * 0.7) + (progress * 0.3), 2),
+            "Период": period_label
         })
 
-    # Создаем таблицу рейтинга
-    ranking_df = pd.DataFrame(kpi_results).sort_values(by="KPI", ascending=False)
+    if not kpi_results:
+        st.info("Нет данных для отображения за выбранный период.")
+        return
 
-    # 2. Визуализация: ТОП-3 карточки
-    st.markdown("### Лидеры месяца")
-    top_cols = st.columns(min(len(ranking_df), 3))
-    for i, (_, row) in enumerate(ranking_df.head(3).iterrows()):
-        with top_cols[i]:
-            st.metric(
-                label=f"{i+1}. {row['Преподаватель']}",
-                value=f"{row['KPI']} pts",
-                delta=f"{row['Прогресс']}% за месяц"
-            )
+    ranking_df = pd.DataFrame(kpi_results).sort_values(by="KPI Score", ascending=False)
 
-    st.write("---")
-
-    # 3. Интерактивная таблица
-    st.markdown("### Сводная таблица KPI")
+    # --- ВИЗУАЛИЗАЦИЯ ---
+    st.divider()
     
-    # Цветовая индикация статуса
-    def color_status(val):
-        color = 'green' if 'Рост' in val else 'red' if 'Спад' in val else 'gray'
-        return f'color: {color}; font-weight: bold'
+    c1, c2 = st.columns([1, 2])
+    with c1:
+        st.subheader("Лидеры")
+        for i, row in ranking_df.head(3).iterrows():
+            st.metric(label=row["Учитель"], value=f"{row['KPI Score']}", delta=f"{row['Динамика']}%")
 
-    st.dataframe(
-        ranking_df.style.applymap(color_status, subset=['Статус']),
-        use_container_width=True,
-        hide_index=True
-    )
+    with c2:
+        fig = px.bar(
+            ranking_df, x="KPI Score", y="Учитель", orientation='h',
+            color="KPI Score", color_continuous_scale="RdYlGn",
+            text="Средний %", title=f"Рейтинг: {selected_month_name}"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
-    # 4. Аналитический график
-    st.markdown("### Матрица эффективности")
-    fig = px.scatter(
-        ranking_df,
-        x="Ср. балл",
-        y="Прогресс",
-        size="KPI",
-        color="Статус",
-        hover_name="Преподаватель",
-        text="Преподаватель",
-        title="Соотношение уровня знаний и темпа роста (размер пузырька = KPI)",
-        color_discrete_map={"🔥 Рост": "#2ecc71", "➡️ Стабильно": "#3498db", "↘️ Спад": "#e74c3c"}
-    )
-    fig.update_traces(textposition='top center')
-    st.plotly_chart(fig, use_container_width=True)
-
-    with st.expander("ℹ️ Как считается KPI?"):
-        st.write("""
-        Формула KPI учитывает три фактора:
-        1. **Уровень знаний (40%)**: Текущий средний процент выполнения заданий.
-        2. **Динамика (30%)**: Изменение среднего балла по сравнению с прошлым месяцем. Коэффициент x3 делает прогресс очень весомым.
-        3. **Социальная ответственность (30%)**: Процент учеников, набравших более 33% (порог 'выживания'). 
-        
-        *Система поощряет учителей, которые не только держат высокую планку, но и постоянно улучшают результаты своих учеников.*
-        """)
+    st.dataframe(ranking_df, use_container_width=True)
