@@ -140,10 +140,6 @@ def show(df: pd.DataFrame, student_id: int, student_name: str):
     achievement_card(a8, "Пташка", "Ранний старт", "🐣", is_early_bird, 
                      "Начни подготовку в самом начале учебного года (сентябрь-октябрь).")
     
-    # --- ДОБАВИМ ЕЩЕ ПАРУ НОВЫХ АЧИВОК ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    a9, a10, a11, a12 = st.columns(4)
-
     # 9. Укротитель сложности (Giant Slayer)
     # Находим средний балл класса по всем заданиям
     class_task_avg = df.groupby("task_name")["task_percent"].mean()

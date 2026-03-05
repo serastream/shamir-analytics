@@ -139,53 +139,6 @@ def show(df: pd.DataFrame, student_id: int, student_name: str):
     is_early_bird = (df_student["month_id"] <= 2).any()
     achievement_card(a8, "Пташка", "Ранний старт", "🐣", is_early_bird, 
                      "Начни подготовку в самом начале учебного года (сентябрь-октябрь).")
-    
-    # --- ДОБАВИМ ЕЩЕ ПАРУ НОВЫХ АЧИВОК ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    a9, a10, a11, a12 = st.columns(4)
-
-    # 9. Укротитель сложности (Giant Slayer)
-    # Находим средний балл класса по всем заданиям
-    class_task_avg = df.groupby("task_name")["task_percent"].mean()
-    hardest_task = class_task_avg.idxmin() # Самое сложное задание для всех
-    # Проверяем, как его решил наш ученик
-    student_hard_score = df_student[df_student["task_name"] == hardest_task]["task_percent"].max()
-    is_giant_slayer = student_hard_score > 70 if pd.notna(student_hard_score) else False
-    
-    achievement_card(a9, "Укротитель", "Сломил босса", "⚔️", is_giant_slayer, 
-                     f"Набери >70% в задании '{hardest_task}', которое сложнее всего дается классу.")
-
-    # 10. Феникс (Phoenix)
-    is_phoenix = False
-    if len(monthly) >= 2:
-        for i in range(1, len(monthly)):
-            if monthly["avg_score"].iloc[i-1] < 40 and monthly["avg_score"].iloc[i] > 60:
-                is_phoenix = True
-                break
-    
-    achievement_card(a10, "Феникс", "Восставший", "🔥", is_phoenix, 
-                     "Соверши мощный рывок: подними средний балл более чем на 20 пунктов за один месяц.")
-
-    # 11. Универсал (Polymath)
-    subject_scores = df_student_all.groupby("subject")["task_percent"].mean()
-    is_polymath = (len(subject_scores) >= 3) and (subject_scores > 70).all()
-    
-    achievement_card(a11, "Универсал", "Мастер на все руки", "🎭", is_polymath, 
-                     "Держи планку выше 70% сразу по трем и более предметам.")
-
-    # 12. Детектив (Paradox)
-    # Сравниваем среднее по простым (1-10) и сложным (11+) задачам, если в имени есть цифры
-    # Или просто: решил ли он задачу из конца списка лучше, чем из начала
-    is_detective = False
-    if not df_student.empty:
-        # Упрощенно: среднее по задачам с индексом > 10 против < 10
-        top_tasks = df_student[df_student["task_name"].str.extract('(\d+)').astype(float)[0] > 10]["task_percent"].mean()
-        base_tasks = df_student[df_student["task_name"].str.extract('(\d+)').astype(float)[0] <= 10]["task_percent"].mean()
-        if top_tasks > base_tasks and top_tasks > 50:
-            is_detective = True
-
-    achievement_card(a12, "Детектив", "Взломал систему", "🕵️", is_detective, 
-                     "Твой результат по сложным заданиям выше, чем по простым. Необычный подход!")
 
     # --- БЛОК 3: ГРАФИКА И АНАЛИТИКА ---
     c_graph, c_prediction = st.columns([2, 1])

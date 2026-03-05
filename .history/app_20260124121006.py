@@ -105,7 +105,7 @@ elif role == "Родитель":
 
 # --- Ученик ---
 elif role == "Ученик":
-    student_list = sorted(df_results_summary["student"].dropna().astype(str).unique())
+    student_list = sorted(df_results_summary["student"].dropna().unique())
     student_name = st.sidebar.selectbox("Выберите своё имя:", student_list)
     student_id = df_results_summary.loc[df_results_summary["student"] == student_name, "student_id"].iloc[0]
     st.sidebar.success(f"✅ Привет, {student_name}!")
