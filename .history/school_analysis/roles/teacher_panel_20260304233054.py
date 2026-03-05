@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 import plotly.graph_objects as go
-from scipy.spatial.distance import pdist, squareform
 
 from school_analysis.analytics import diagnostics
 
@@ -538,11 +537,12 @@ def show(df: pd.DataFrame):
                       
 
         # ===========================================================
-        # ВКЛАДКА 2 — Социометрия обучения (ПОЛНЫЙ КОД)
+        # ВКЛАДКА 2 — Социометрия обучения (МОДИФИЦИРОВАННАЯ)
         # ===========================================================
         with tab2:
             st.markdown("<h2>🕸 Группы синхронности и траекторий</h2>", unsafe_allow_html=True)
             
+            # 1. Добавляем понятный фильтр для учителя
             col_t1, col_t2 = st.columns([1, 2])
             with col_t1:
                 threshold = st.slider(
@@ -551,137 +551,125 @@ def show(df: pd.DataFrame):
                     help="Чем выше значение, тем более идентичными должны быть оценки учеников для появления линии связи."
                 )
             with col_t2:
-                st.caption("Линии показывают, что ученики одинаково ошибаются или растут. Цвет узла — средний балл (Красный < 50% < Зеленый).")
+                st.caption("""
+                    **Как читать этот график:**
+                    - **Линия между учениками:** они совершают одни и те же ошибки и растут в одни и те же моменты.
+                    - **Цвет узла:** текущая успеваемость (Зеленый — ок, Красный — зона риска).
+                    - **Группировка:** ученики, собранные в тесные 'созвездия', нуждаются в одинаковом подходе.
+                """)
 
             # Подготовка данных
             df_dyn = df_f.groupby(["student", "month_id"], as_index=False)["task_percent"].mean()
             pivot = df_dyn.pivot_table(index="student", columns="month_id", values="task_percent").fillna(0)
 
             if pivot.shape[1] < 2:
-                st.info("Недостаточно данных для анализа динамики.")
+                st.info("Недостаточно данных по месяцам для анализа динамики.")
             else:
-                from scipy.spatial.distance import pdist, squareform
-                
-                # А) Сходство динамики
-                corr_matrix = pivot.T.corr().fillna(0)
-                
-                # Б) Сходство уровней (разница средних баллов)
-                avg_scores = pivot.mean(axis=1).values.reshape(-1, 1)
-                dist_matrix = squareform(pdist(avg_scores))
-                score_sim_matrix = 1 - (dist_matrix / 100) 
+                # Считаем корреляцию (схожесть траекторий)
+                similarity = pivot.T.corr()
+                student_mean = df_dyn.groupby("student")["task_percent"].mean().to_dict()
 
                 G = nx.Graph()
                 for student in pivot.index:
-                    G.add_node(student, avg=float(pivot.loc[student].mean()))
+                    avg = float(student_mean.get(student, 0))
+                    G.add_node(student, avg=avg)
 
-                # 2. Создание связей
-                for i_idx, student_i in enumerate(pivot.index):
-                    for j_idx, student_j in enumerate(pivot.index):
-                        if i_idx >= j_idx: continue
-                        combined_weight = (corr_matrix.iloc[i_idx, j_idx] * 0.6) + (score_sim_matrix[i_idx, j_idx] * 0.4)
-                        if combined_weight > threshold:
-                            G.add_edge(student_i, student_j, weight=combined_weight)
+                # Добавляем ребра только если связь выше порога
+                for i in similarity.index:
+                    for j in similarity.columns:
+                        if i != j and similarity.loc[i, j] > threshold:
+                            G.add_edge(i, j, weight=float(similarity.loc[i, j]))
 
-                # 3. ВОССТАНОВЛЕНИЕ community_map (Поиск групп)
-                # Используем алгоритм для выделения сообществ внутри получившегося графа
+                # 2. АВТОМАТИЧЕСКАЯ КЛАСТЕРИЗАЦИЯ (Поиск сообществ)
+                # Находим группы учеников со схожим поведением
                 communities = list(nx.community.greedy_modularity_communities(G))
                 community_map = {}
                 for idx, comm in enumerate(communities):
-                    for student in comm:
-                        community_map[student] = idx
+                    for name in comm:
+                        community_map[name] = idx
 
-                # 4. Планировка (расположение точек)
-                pos = nx.spring_layout(G, k=1.5, iterations=50, seed=42)
-
-                # 5. Координаты для линий
-                edge_x = []
-                edge_y = []
-                for edge in G.edges():
-                    x0, y0 = pos[edge[0]]
-                    x1, y1 = pos[edge[1]]
-                    edge_x.extend([x0, x1, None])
-                    edge_y.extend([y0, y1, None])
-
-                # 6. Подготовка узлов
-                node_x, node_y, node_color, node_size, node_text = [], [], [], [], []
+                # 3. Улучшенная визуализация
+                # k=2.0 делает граф более "разреженным" и читаемым
+                pos = nx.spring_layout(G, k=2.0, iterations=100, seed=42)
+                
+                node_x, node_y = [], []
+                node_color, node_size, node_text = [], [], []
 
                 for node in G.nodes:
                     x, y = pos[node]
                     node_x.append(x)
                     node_y.append(y)
                     
-                    avg_val = float(G.nodes[node]["avg"])
-                    node_color.append(avg_val)
-                    node_size.append(20 + (avg_val / 5))
+                    # Берем средний балл (0-100)
+                    avg_val = float(G.nodes[node].get("avg", 0))
+                    node_color.append(avg_val)  # Важно: здесь должно быть число!
                     
-                    # Используем восстановленный community_map
-                    comm_id = community_map.get(node, "Без группы")
-                    node_text.append(f"<b>{node}</b><br>Средний балл: {avg_val:.1f}%<br>Группа: {comm_id}")
-
-                # 7. Отрисовка в Plotly
-                fig = go.Figure()
-                
-                # Линии
-                fig.add_trace(go.Scatter(x=edge_x, y=edge_y, line=dict(width=1, color='#BDC3C7'), hoverinfo='none', mode='lines'))
-                
-                # Точки
-                fig.add_trace(go.Scatter(
-                    x=node_x, y=node_y, mode='markers+text',
-                    text=[n.split(' ')[0] for n in G.nodes],
-                    textposition="top center", hovertext=node_text, hoverinfo='text',
-                    marker=dict(
-                        showscale=True, colorscale='RdYlGn', cmin=0, cmax=100,
-                        color=node_color, size=node_size,
-                        colorbar=dict(title="Балл %", thickness=15),
-                        line=dict(color='white', width=2)
+                    node_size.append(18 + (avg_val / 5)) # Чуть увеличим базу размера
+                    
+                    comm_id = community_map.get(node, "X")
+                    node_text.append(
+                        f"<b>{node}</b><br>"
+                        f"Успеваемость: {avg_val:.0f}%<br>"
+                        f"Группа траектории: {comm_id}"
                     )
+
+                fig = go.Figure()
+
+                # Линии связей (чуть затемним для контраста)
+                fig.add_trace(go.Scatter(
+                    x=edge_x, y=edge_y, mode="lines",
+                    line=dict(color="rgba(150, 150, 150, 0.3)", width=1),
+                    hoverinfo="none"
+                ))
+
+                # Узлы
+                fig.add_trace(go.Scatter(
+                    x=node_x, y=node_y, mode="markers+text",
+                    text=[n.split(' ')[0] for n in G.nodes], 
+                    textposition="top center",
+                    hovertext=node_text,
+                    hoverinfo="text",
+                    marker=dict(
+                        showscale=True,
+                        colorscale='RdYlGn', # Красный-Желтый-Зеленый
+                        reversescale=False,   # Убеждаемся, что не перевернуто
+                        color=node_color,      # Список средних баллов
+                        size=node_size,
+                        cmin=0,                # Явно задаем низ шкалы
+                        cmax=100,              # Явно задаем верх шкалы
+                        colorbar=dict(
+                            title="Успеваемость %",
+                            thickness=15,
+                            x=1.02,
+                            titleside="right"
+                        ),
+                        line=dict(color="#2c3e50", width=1.5) # Темная обводка для четкости
+                    ),
                 ))
 
                 fig.update_layout(
-                    showlegend=False, margin=dict(b=0, l=0, r=0, t=40),
-                    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                    plot_bgcolor='rgba(0,0,0,0)', height=600
+                    plot_bgcolor="rgba(0,0,0,0)", # Прозрачный фон
+                    paper_bgcolor="white",
+                    xaxis=dict(showgrid=False, zeroline=False, visible=False),
+                    yaxis=dict(showgrid=False, zeroline=False, visible=False),
+                    height=600,
+                    margin=dict(l=0, r=50, t=40, b=0)
                 )
-
-                st.plotly_chart(fig, use_container_width=True)
                 
-                # --- АНАЛИЗ АНОМАЛИЙ С УЧЕТОМ ВРЕМЕНИ ---
-                st.markdown("---")
-                st.subheader("📊 Аналитика учебного поведения")
+                st.plotly_chart(fig, use_container_width=True)
 
-                # Берем данные только за выбранный период (df_f уже отфильтрован по месяцам в начале вашего кода)
-                current_period_name = df_f['month_id'].unique()
-
-                # Собираем ошибки именно за этот период
-                student_errors = {
-                    s: set(df_f[(df_f['student'] == s) & (df_f['task_percent'] < 50)]['task_name'].unique())
-                    for s in G.nodes
-                }
-
-                suspicious_pairs = []
-
-                # Проверяем пары внутри групп
-                for comm in communities:
-                    members = list(comm)
-                    for i in range(len(members)):
-                        for j in range(i + 1, len(members)):
-                            common = student_errors[members[i]].intersection(student_errors[members[j]])
-                            
-                            # Если в рамках ВЫБРАННОГО периода более 5-6 общих ошибок - это аномалия
-                            if len(common) >= 6: 
-                                suspicious_pairs.append(f"{members[i]} и {members[j]}")
-
-                # --- БЕЗОПАСНЫЙ ВЫВОД ---
-                if suspicious_pairs:
-                    st.info(f"🔍 **Замечена высокая синхронность:** У пар {', '.join(suspicious_pairs)} выявлено более 6 идентичных ошибок в выбранном периоде. Это может указывать на совместное выполнение заданий.")
-                else:
-                    st.success(f"✅ **Самостоятельная работа:** В выбранном периоде ({', '.join(map(str, current_period_name))}) аномальных совпадений не обнаружено. Каждый ученик демонстрирует свой уникальный набор ошибок.")
-
-                # Одиночки
-                isolated = [n for n in G.nodes if G.degree[n] == 0]
-                if isolated:
-                    st.caption(f"Ученики с индивидуальным темпом в этом месяце: {', '.join(isolated)}.")
+                # 4. БЛОК АВТО-ИНСАЙТОВ (Actionable Insights)
+                st.markdown("### 💡 Рекомендация для учителя")
+                if len(communities) > 0:
+                    strongest_comm = max(communities, key=len)
+                    if len(strongest_comm) > 1:
+                        names = ", ".join(list(strongest_comm)[:3])
+                        st.info(f"""
+                        **Замечена группа синхронности:** ученики **{names}** и еще {len(strongest_comm)-3 if len(strongest_comm)>3 else ''} чел. 
+                        двигаются по программе максимально идентично. 
+                        Рекомендуется дать им разную нагрузку, чтобы проверить, нет ли эффекта 'коллективного списывания' 
+                        или общего системного пробела в теме.
+                        """)
 
     # ===========================================================
     # ВКЛАДКА 3 — Темп обучения

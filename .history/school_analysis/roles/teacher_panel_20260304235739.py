@@ -646,42 +646,52 @@ def show(df: pd.DataFrame):
 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # --- АНАЛИЗ АНОМАЛИЙ С УЧЕТОМ ВРЕМЕНИ ---
+                # --- ЧЕЛОВЕЧЕСКИЙ ВЫВОД (ДЕТЕКТОР АНОМАЛИЙ) ---
                 st.markdown("---")
-                st.subheader("📊 Аналитика учебного поведения")
+                st.subheader("📝 Краткий отчет по группам")
 
-                # Берем данные только за выбранный период (df_f уже отфильтрован по месяцам в начале вашего кода)
-                current_period_name = df_f['month_id'].unique()
+                if len(communities) > 0:
+                    anomalies = []
+                    
+                    # Собираем ошибки заранее
+                    student_errors = {
+                        s: set(df_f[(df_f['student'] == s) & (df_f['task_percent'] < 50)]['task_name'].unique())
+                        for s in G.nodes
+                    }
 
-                # Собираем ошибки именно за этот период
-                student_errors = {
-                    s: set(df_f[(df_f['student'] == s) & (df_f['task_percent'] < 50)]['task_name'].unique())
-                    for s in G.nodes
-                }
+                    # Анализируем группы
+                    for comm in communities:
+                        if len(comm) < 2: continue
+                        members = list(comm)
+                        
+                        # Ищем, есть ли внутри этой группы те, кто совпал по ошибкам
+                        for i in range(len(members)):
+                            for j in range(i + 1, len(members)):
+                                common = student_errors[members[i]].intersection(student_errors[members[j]])
+                                if len(common) >= 3: # Порог в 3 общие ошибки
+                                    anomalies.append({
+                                        "pair": f"{members[i]} и {members[j]}",
+                                        "count": len(common),
+                                        "tasks": ", ".join(sorted(list(common))[:5]) # не более 5 для краткости
+                                    })
 
-                suspicious_pairs = []
+                    # Выводим один общий блок
+                    if anomalies:
+                        summary_text = ""
+                        for a in anomalies:
+                            summary_text += f"📍 **{a['pair']}**: {a['count']} общих ошибок (задания: {a['tasks']})\n\n"
+                        
+                        st.error(f"⚠️ **Обнаружены критические совпадения (риск списывания):**\n\n{summary_text}")
+                    else:
+                        st.success("✅ **Анализ завершен:** Аномальных совпадений в ответах не найдено. Ученики работают самостоятельно.")
 
-                # Проверяем пары внутри групп
-                for comm in communities:
-                    members = list(comm)
-                    for i in range(len(members)):
-                        for j in range(i + 1, len(members)):
-                            common = student_errors[members[i]].intersection(student_errors[members[j]])
-                            
-                            # Если в рамках ВЫБРАННОГО периода более 5-6 общих ошибок - это аномалия
-                            if len(common) >= 6: 
-                                suspicious_pairs.append(f"{members[i]} и {members[j]}")
+                    # Одиночки — одной строкой
+                    isolated = [n for n in G.nodes if G.degree[n] == 0]
+                    if isolated:
+                        st.info(f"👤 **Индивидуальное обучение:** {', '.join(isolated)}. Эти ученики не вписываются в общие тренды класса, им нужны отдельные задания.")
 
-                # --- БЕЗОПАСНЫЙ ВЫВОД ---
-                if suspicious_pairs:
-                    st.info(f"🔍 **Замечена высокая синхронность:** У пар {', '.join(suspicious_pairs)} выявлено более 6 идентичных ошибок в выбранном периоде. Это может указывать на совместное выполнение заданий.")
                 else:
-                    st.success(f"✅ **Самостоятельная работа:** В выбранном периоде ({', '.join(map(str, current_period_name))}) аномальных совпадений не обнаружено. Каждый ученик демонстрирует свой уникальный набор ошибок.")
-
-                # Одиночки
-                isolated = [n for n in G.nodes if G.degree[n] == 0]
-                if isolated:
-                    st.caption(f"Ученики с индивидуальным темпом в этом месяце: {', '.join(isolated)}.")
+                    st.write("Слишком высокая чувствительность — связи не видны.")
 
     # ===========================================================
     # ВКЛАДКА 3 — Темп обучения

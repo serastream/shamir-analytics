@@ -646,42 +646,46 @@ def show(df: pd.DataFrame):
 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # --- АНАЛИЗ АНОМАЛИЙ С УЧЕТОМ ВРЕМЕНИ ---
+                # --- ГИБКИЙ ПЕДАГОГИЧЕСКИЙ ВЫВОД ---
                 st.markdown("---")
-                st.subheader("📊 Аналитика учебного поведения")
+                st.subheader("📊 Резюме по состоянию класса")
 
-                # Берем данные только за выбранный период (df_f уже отфильтрован по месяцам в начале вашего кода)
-                current_period_name = df_f['month_id'].unique()
-
-                # Собираем ошибки именно за этот период
+                # 1. Сбор данных для анализа
+                suspicious_students = set()
                 student_errors = {
                     s: set(df_f[(df_f['student'] == s) & (df_f['task_percent'] < 50)]['task_name'].unique())
                     for s in G.nodes
                 }
 
-                suspicious_pairs = []
-
-                # Проверяем пары внутри групп
                 for comm in communities:
                     members = list(comm)
                     for i in range(len(members)):
                         for j in range(i + 1, len(members)):
                             common = student_errors[members[i]].intersection(student_errors[members[j]])
-                            
-                            # Если в рамках ВЫБРАННОГО периода более 5-6 общих ошибок - это аномалия
-                            if len(common) >= 6: 
-                                suspicious_pairs.append(f"{members[i]} и {members[j]}")
+                            if len(common) >= 5: 
+                                suspicious_students.update([members[i], members[j]])
 
-                # --- БЕЗОПАСНЫЙ ВЫВОД ---
-                if suspicious_pairs:
-                    st.info(f"🔍 **Замечена высокая синхронность:** У пар {', '.join(suspicious_pairs)} выявлено более 6 идентичных ошибок в выбранном периоде. Это может указывать на совместное выполнение заданий.")
-                else:
-                    st.success(f"✅ **Самостоятельная работа:** В выбранном периоде ({', '.join(map(str, current_period_name))}) аномальных совпадений не обнаружено. Каждый ученик демонстрирует свой уникальный набор ошибок.")
-
-                # Одиночки
                 isolated = [n for n in G.nodes if G.degree[n] == 0]
-                if isolated:
-                    st.caption(f"Ученики с индивидуальным темпом в этом месяце: {', '.join(isolated)}.")
+                total_students = len(G.nodes)
+
+                # 2. Логика формирования "человеческого" вердикта
+                if total_students > 0:
+                    # Сценарий А: Высокий риск совпадений
+                    if len(suspicious_students) > total_students * 0.5:
+                        st.error(f"⚠️ **Обстановка требует внимания:** У большей части класса ({', '.join(suspicious_students)}) наблюдаются идентичные ошибки. Это может указывать как на коллективное списывание, так и на общее непонимание ключевых тем.")
+                    
+                    # Сценарий Б: Есть отдельные группы, но в целом всё ок
+                    elif suspicious_students:
+                        names_str = ", ".join(sorted(list(suspicious_students)))
+                        st.warning(f"🧐 **Локальные совпадения:** В целом обстановка здоровая, но траектории **{names_str}** подозрительно похожи. Стоит проверить их работы на самостоятельность.")
+                    
+                    # Сценарий В: Все работают индивидуально
+                    else:
+                        st.success("✅ **Здоровая учебная среда:** Ученики демонстрируют самостоятельную работу. Совпадений в цепочках ошибок не обнаружено, каждый идет своим темпом.")
+
+                    # Дополнительный нюанс про одиночек (лидеры или отстающие)
+                    if isolated:
+                        st.info(f"🧩 **Особый подход:** {', '.join(isolated)} работают в уникальном ритме, отличном от остального класса. Им могут потребоваться индивидуальные задания повышенной сложности или точечная помощь.")
 
     # ===========================================================
     # ВКЛАДКА 3 — Темп обучения

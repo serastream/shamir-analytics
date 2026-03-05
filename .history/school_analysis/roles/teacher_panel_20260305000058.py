@@ -646,42 +646,38 @@ def show(df: pd.DataFrame):
 
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # --- АНАЛИЗ АНОМАЛИЙ С УЧЕТОМ ВРЕМЕНИ ---
+                # --- ФИНАЛЬНЫЙ ЛАКОНИЧНЫЙ ВЫВОД ---
                 st.markdown("---")
-                st.subheader("📊 Аналитика учебного поведения")
 
-                # Берем данные только за выбранный период (df_f уже отфильтрован по месяцам в начале вашего кода)
-                current_period_name = df_f['month_id'].unique()
+                if len(communities) > 0:
+                    # 1. Собираем уникальный список "подозрительных"
+                    suspicious_students = set()
+                    student_errors = {
+                        s: set(df_f[(df_f['student'] == s) & (df_f['task_percent'] < 50)]['task_name'].unique())
+                        for s in G.nodes
+                    }
 
-                # Собираем ошибки именно за этот период
-                student_errors = {
-                    s: set(df_f[(df_f['student'] == s) & (df_f['task_percent'] < 50)]['task_name'].unique())
-                    for s in G.nodes
-                }
+                    for comm in communities:
+                        members = list(comm)
+                        for i in range(len(members)):
+                            for j in range(i + 1, len(members)):
+                                common = student_errors[members[i]].intersection(student_errors[members[j]])
+                                if len(common) >= 5: # Порог совпадения (можно настроить)
+                                    suspicious_students.update([members[i], members[j]])
 
-                suspicious_pairs = []
+                    # 2. Формируем ОДИН текстовый блок
+                    if suspicious_students:
+                        names_str = ", ".join(sorted(list(suspicious_students)))
+                        st.error(f"⚠️ **Высокий риск списывания:** Ученики **{names_str}** имеют аномально схожие траектории ошибок. Рекомендуется проверить их работы на идентичность.")
+                    else:
+                        st.success("✅ **Анализ завершен:** Подозрительных совпадений в траекториях учеников не обнаружено.")
 
-                # Проверяем пары внутри групп
-                for comm in communities:
-                    members = list(comm)
-                    for i in range(len(members)):
-                        for j in range(i + 1, len(members)):
-                            common = student_errors[members[i]].intersection(student_errors[members[j]])
-                            
-                            # Если в рамках ВЫБРАННОГО периода более 5-6 общих ошибок - это аномалия
-                            if len(common) >= 6: 
-                                suspicious_pairs.append(f"{members[i]} и {members[j]}")
-
-                # --- БЕЗОПАСНЫЙ ВЫВОД ---
-                if suspicious_pairs:
-                    st.info(f"🔍 **Замечена высокая синхронность:** У пар {', '.join(suspicious_pairs)} выявлено более 6 идентичных ошибок в выбранном периоде. Это может указывать на совместное выполнение заданий.")
+                    # 3. Одиночки (тоже одной строкой без лишних пояснений)
+                    isolated = [n for n in G.nodes if G.degree[n] == 0]
+                    if isolated:
+                        st.info(f"👤 **Индивидуальный темп:** {', '.join(isolated)}. Этим ученикам требуется персональный разбор тем.")
                 else:
-                    st.success(f"✅ **Самостоятельная работа:** В выбранном периоде ({', '.join(map(str, current_period_name))}) аномальных совпадений не обнаружено. Каждый ученик демонстрирует свой уникальный набор ошибок.")
-
-                # Одиночки
-                isolated = [n for n in G.nodes if G.degree[n] == 0]
-                if isolated:
-                    st.caption(f"Ученики с индивидуальным темпом в этом месяце: {', '.join(isolated)}.")
+                    st.info("Недостаточно связей для анализа. Попробуйте снизить порог чувствительности.")
 
     # ===========================================================
     # ВКЛАДКА 3 — Темп обучения
