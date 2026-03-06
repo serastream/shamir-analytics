@@ -86,47 +86,47 @@ elif role == "Учитель":
         st.stop()
     st.sidebar.success("✅ Вход учителя выполнен.")
 
-# --- Родитель ---
-elif role == "Родитель":
-    surname = st.sidebar.text_input("Введите фамилию ученика:").strip()
-    if not surname:
-        st.info("Введите фамилию ученика для продолжения.")
-        st.stop()
+    # --- Родитель ---
+    elif role == "Родитель":
+        surname = st.sidebar.text_input("Введите фамилию ученика:").strip()
+        if not surname:
+            st.info("Введите фамилию ученика для продолжения.")
+            st.stop()
 
-    # Фильтруем данные по введенной фамилии
-    matches = df_results_summary[df_results_summary["student"].astype(str).str.contains(surname, case=False, na=False)]
-    
-    if matches.empty:
-        st.error("❌ Ученик с такой фамилией не найден.")
-        st.stop()
+        # Фильтруем данные по введенной фамилии
+        matches = df_results_summary[df_results_summary["student"].astype(str).str.contains(surname, case=False, na=False)]
+        
+        if matches.empty:
+            st.error("❌ Ученик с такой фамилией не найден.")
+            st.stop()
 
-    # Извлекаем список имен как чистый список Python (.tolist()), чтобы избежать проблем с индексами
-    possible_students = sorted(matches["student"].unique().tolist())
-    student_name = st.sidebar.selectbox("Выберите ученика:", possible_students)
-    
-    # Безопасно получаем student_id
-    selected_row = matches[matches["student"] == student_name]
-    if not selected_row.empty:
-        student_id = selected_row["student_id"].iloc[0]
-        st.sidebar.success(f"✅ Отчёт для родителя: {student_name}")
-    else:
-        st.error("Ошибка: данные ученика не найдены.")
-        st.stop()
+        # Извлекаем список имен как чистый список Python (.tolist()), чтобы избежать проблем с индексами
+        possible_students = sorted(matches["student"].unique().tolist())
+        student_name = st.sidebar.selectbox("Выберите ученика:", possible_students)
+        
+        # Безопасно получаем student_id
+        selected_row = matches[matches["student"] == student_name]
+        if not selected_row.empty:
+            student_id = selected_row["student_id"].iloc[0]
+            st.sidebar.success(f"✅ Отчёт для родителя: {student_name}")
+        else:
+            st.error("Ошибка: данные ученика не найдены.")
+            st.stop()
 
-# --- Ученик ---
-elif role == "Ученик":
-    # Также используем .tolist() для чистого списка имен
-    student_list = sorted(df_results_summary["student"].dropna().astype(str).unique().tolist())
-    student_name = st.sidebar.selectbox("Выберите своё имя:", student_list)
-    
-    # Безопасный поиск ID
-    selected_row = df_results_summary[df_results_summary["student"] == student_name]
-    if not selected_row.empty:
-        student_id = selected_row["student_id"].iloc[0]
-        st.sidebar.success(f"✅ Привет, {student_name}!")
-    else:
-        st.error("Ошибка: ID ученика не найден.")
-        st.stop()
+    # --- Ученик ---
+    elif role == "Ученик":
+        # Также используем .tolist() для чистого списка имен
+        student_list = sorted(df_results_summary["student"].dropna().astype(str).unique().tolist())
+        student_name = st.sidebar.selectbox("Выберите своё имя:", student_list)
+        
+        # Безопасный поиск ID
+        selected_row = df_results_summary[df_results_summary["student"] == student_name]
+        if not selected_row.empty:
+            student_id = selected_row["student_id"].iloc[0]
+            st.sidebar.success(f"✅ Привет, {student_name}!")
+        else:
+            st.error("Ошибка: ID ученика не найден.")
+            st.stop()
 
 
 # ------------------------------------------------
