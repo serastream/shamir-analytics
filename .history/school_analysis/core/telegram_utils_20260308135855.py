@@ -88,7 +88,7 @@ def generate_ai_report(student_name, mean_score, growth, strong_tasks, weak_task
     """
         
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="gpt-4o",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )

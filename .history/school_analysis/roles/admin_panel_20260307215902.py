@@ -11,7 +11,7 @@ from school_analysis.core.attendance import attendance_widget
 from school_analysis.analytics.teacher_kpi import show_teacher_kpi
 #from school_analysis.analytics.forecast_utils import add_forecast_line
 import school_analysis.core.telegram_utils as tg_utils
-from school_analysis.core.telegram_utils import generate_ai_report
+
 # ============================================================ #
 #     ПАНЕЛЬ АДМИНИСТРАЦИИ
 # ============================================================ #
@@ -610,30 +610,34 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 parent_id = p_id_val[0] if len(p_id_val) > 0 else None
 
                 if parent_id and not pd.isna(parent_id):
-                    if st.button(f"💎 Отправить отчет по {subjects_title}", type="primary"):
-                        with st.spinner("Искусственный интеллект анализирует успеваемость..."):
+                    if st.button(f"💎 Сгенерировать и отправить AI-отчет ({subjects_title})", type="primary"):
+                        with st.spinner("Искусственный интеллект анализирует данные..."):
                             
-                            # Подготовка списков для ИИ
-                            strong_str = ", ".join(strong_tasks[:3]) if strong_tasks else "в процессе определения"
-                            weak_str = ", ".join(weak_tasks[:3]) if weak_tasks else "не выявлены"
+                            # 1. Формируем список тем для ИИ
+                            strong_str = ", ".join([t.replace('test', '').strip() for t in strong_tasks[:3]])
+                            weak_str = ", ".join([t.replace('test', '').strip() for t in weak_tasks[:3]])
                             
-                            # Генерация
-                            ai_text = generate_ai_report(
-                                first_name, mean_score, score_growth, 
-                                strong_str, weak_str, subjects_title
-                            )
-                            
-                            # Отправка
-                            import school_analysis.core.telegram_utils as tg_utils
-                            success = tg_utils.send_report_with_chart(
-                                chat_id=parent_id,
-                                text=ai_text,
-                                fig=fig
-                            )
-                            
-                            if success:
-                                st.balloons()
-                                st.success("✨ Отчет успешно отправлен!")
+                            # 2. Генерируем текст через OpenAI (функция выше)
+                            try:
+                                ai_text = generate_ai_report(
+                                    first_name, mean_score, score_growth, 
+                                    strong_str, weak_str, subjects_title
+                                )
+                                
+                                # 3. Отправляем график и AI текст
+                                success = tg_utils.send_report_with_chart(
+                                    chat_id=parent_id,
+                                    text=ai_text,
+                                    fig=fig
+                                )
+                                
+                                if success:
+                                    st.success("✨ Премиум-отчет доставлен!")
+                                    st.balloons()
+                            except Exception as e:
+                                st.error(f"Ошибка ИИ: {e}. Отправляю стандартный отчет.")
+                                # Резервный вариант отправки без ИИ
+                                tg_utils.send_report_with_chart(chat_id=parent_id, text="Отчет готов", fig=fig)
 
     # ============================================================
     # 📊 СРАВНЕНИЕ КЛАССОВ И ПРЕДМЕТОВ + ДИНАМИКА (ТОЛЬКО СРЕДНИЙ %)

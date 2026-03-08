@@ -11,4 +11,3 @@ networkx
 python-telegram-bot
 reportlab
 streamlit-aggrid==0.3.4.post3
-kaleido

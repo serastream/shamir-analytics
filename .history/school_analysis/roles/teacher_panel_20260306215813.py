@@ -25,7 +25,6 @@ from school_analysis.analytics.learning_tempo import show_learning_tempo
 from school_analysis.analytics.influence_network import show_influence_network
 from school_analysis.analytics.topic_recommendations import generate_category_recommendations
 
-from school_analysis.core.telegram_utils import send_message
 
 @st.cache_data(show_spinner=False)
 def get_teacher_context_cached(df_c, top_n: int):
@@ -389,7 +388,6 @@ def show(df: pd.DataFrame):
 
         diagnostics.plot_class_task_performance(df_f)
 
-        
         # ===========================================================
         # 🧠 РЕКОМЕНДАЦИИ ПО ПОДГОТОВКЕ (темы + задания) — компактный UX
         # ===========================================================

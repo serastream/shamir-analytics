@@ -11,7 +11,7 @@ from school_analysis.core.attendance import attendance_widget
 from school_analysis.analytics.teacher_kpi import show_teacher_kpi
 #from school_analysis.analytics.forecast_utils import add_forecast_line
 import school_analysis.core.telegram_utils as tg_utils
-from school_analysis.core.telegram_utils import generate_ai_report
+import pandas as pd
 # ============================================================ #
 #     ПАНЕЛЬ АДМИНИСТРАЦИИ
 # ============================================================ #
@@ -361,10 +361,6 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 subjects_available,
                 default=subjects_available[:1]
             )
-
-            # Создаем заголовок ПРЯМО ТУТ, чтобы он был доступен везде ниже
-            subjects_title = ", ".join(selected_subjects) if selected_subjects else "Все предметы"
-
             filtered_dyn = filtered_dyn[filtered_dyn['subject'].isin(selected_subjects)]
 
             
@@ -467,8 +463,8 @@ def show_analytics(df: pd.DataFrame, data: dict):
             # --- Настройки графика ---
             fig.update_layout(
                 title=dict(
-                    text=f"Предмет: <b>{subjects_title}</b> | Ученик: <b>{selected_student}</b><br>"
-                        f"<span style='font-size:0.85em;color:gray;'>Динамика на фоне среднего результата класса</span>",
+                    text=f"Индивидуальная динамика: <b>{selected_student}</b> ({selected_class})<br>"
+                        f"<span style='font-size:0.9em;color:#555;'>На фоне среднего результата класса</span>",
                     x=0.5, xanchor='center'
                 ),
                 yaxis=dict(
@@ -602,39 +598,9 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 else:
                     st.markdown("Пока недостаточно данных для анализа по заданиям.")
 
-        # --- КНОПКА ОТПРАВКИ В TELEGRAM ---
-                st.markdown("---")
-                
-                # Проверяем, есть ли parent_id в отфильтрованных данных ученика
-                p_id_val = filtered_dyn['parent_id'].dropna().unique()
-                parent_id = p_id_val[0] if len(p_id_val) > 0 else None
 
-                if parent_id and not pd.isna(parent_id):
-                    if st.button(f"💎 Отправить отчет по {subjects_title}", type="primary"):
-                        with st.spinner("Искусственный интеллект анализирует успеваемость..."):
-                            
-                            # Подготовка списков для ИИ
-                            strong_str = ", ".join(strong_tasks[:3]) if strong_tasks else "в процессе определения"
-                            weak_str = ", ".join(weak_tasks[:3]) if weak_tasks else "не выявлены"
-                            
-                            # Генерация
-                            ai_text = generate_ai_report(
-                                first_name, mean_score, score_growth, 
-                                strong_str, weak_str, subjects_title
-                            )
-                            
-                            # Отправка
-                            import school_analysis.core.telegram_utils as tg_utils
-                            success = tg_utils.send_report_with_chart(
-                                chat_id=parent_id,
-                                text=ai_text,
-                                fig=fig
-                            )
-                            
-                            if success:
-                                st.balloons()
-                                st.success("✨ Отчет успешно отправлен!")
 
+        st.success(f"✅ Рассылка завершена! Отправлено: {success_count}. Пропущено (нет ID): {skip_count}.")
     # ============================================================
     # 📊 СРАВНЕНИЕ КЛАССОВ И ПРЕДМЕТОВ + ДИНАМИКА (ТОЛЬКО СРЕДНИЙ %)
     # ============================================================

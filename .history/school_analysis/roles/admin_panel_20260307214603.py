@@ -11,7 +11,7 @@ from school_analysis.core.attendance import attendance_widget
 from school_analysis.analytics.teacher_kpi import show_teacher_kpi
 #from school_analysis.analytics.forecast_utils import add_forecast_line
 import school_analysis.core.telegram_utils as tg_utils
-from school_analysis.core.telegram_utils import generate_ai_report
+
 # ============================================================ #
 #     ПАНЕЛЬ АДМИНИСТРАЦИИ
 # ============================================================ #
@@ -361,10 +361,6 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 subjects_available,
                 default=subjects_available[:1]
             )
-
-            # Создаем заголовок ПРЯМО ТУТ, чтобы он был доступен везде ниже
-            subjects_title = ", ".join(selected_subjects) if selected_subjects else "Все предметы"
-
             filtered_dyn = filtered_dyn[filtered_dyn['subject'].isin(selected_subjects)]
 
             
@@ -467,8 +463,8 @@ def show_analytics(df: pd.DataFrame, data: dict):
             # --- Настройки графика ---
             fig.update_layout(
                 title=dict(
-                    text=f"Предмет: <b>{subjects_title}</b> | Ученик: <b>{selected_student}</b><br>"
-                        f"<span style='font-size:0.85em;color:gray;'>Динамика на фоне среднего результата класса</span>",
+                    text=f"Индивидуальная динамика: <b>{selected_student}</b> ({selected_class})<br>"
+                        f"<span style='font-size:0.9em;color:#555;'>На фоне среднего результата класса</span>",
                     x=0.5, xanchor='center'
                 ),
                 yaxis=dict(
@@ -610,30 +606,52 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 parent_id = p_id_val[0] if len(p_id_val) > 0 else None
 
                 if parent_id and not pd.isna(parent_id):
-                    if st.button(f"💎 Отправить отчет по {subjects_title}", type="primary"):
-                        with st.spinner("Искусственный интеллект анализирует успеваемость..."):
+                    st.info(f"📱 Контакт родителя найден. ID: {int(parent_id)}")
+                    
+                    if st.button(f"📤 Отправить отчет родителям {first_name}", key="send_tg_report"):
+                        with st.spinner("Генерация и отправка отчета..."):
                             
-                            # Подготовка списков для ИИ
-                            strong_str = ", ".join(strong_tasks[:3]) if strong_tasks else "в процессе определения"
-                            weak_str = ", ".join(weak_tasks[:3]) if weak_tasks else "не выявлены"
-                            
-                            # Генерация
-                            ai_text = generate_ai_report(
-                                first_name, mean_score, score_growth, 
-                                strong_str, weak_str, subjects_title
+                            student_name_clean = str(selected_student).replace("<", "&lt;").replace(">", "&gt;")
+
+                            report_caption = (
+                                f"<b>📊 Отчет об успеваемости: {student_name_clean}</b>\n\n"
+                                f"📈 Средний балл: <b>{mean_score:.1f}%</b>\n"
+                                f"📅 Пробников: {len(months_student)} из {len(months_class)}\n"
                             )
-                            
-                            # Отправка
+
+                            if score_growth is not None:
+                                trend_emoji = "🟢" if score_growth > 0 else "🔴"
+                                report_caption += f"{trend_emoji} Изменение: <b>{score_growth:+.1f}%</b>\n"
+
+                            # 2. Обработка анализа задач (самое опасное место)
+                            if 'text_parts' in locals() and text_parts:
+                                report_caption += "\n"
+                                for part in text_parts:
+                                    # Убираем Markdown-звездочки и заменяем их на строгий HTML <b>
+                                    clean_part = part.replace("**", "<b>", 1).replace("**", "</b>", 1)
+                                    # Если вдруг осталась одинокая звездочка или непарный тег - вычищаем
+                                    if "<b>" in clean_part and "</b>" not in clean_part:
+                                        clean_part += "</b>"
+                                    report_caption += clean_part + "\n"
+
+                            # 3. Финальная проверка: если в строке есть <b>, но нет </b> — принудительно закрываем
+                            if report_caption.count("<b>") != report_caption.count("</b>"):
+                                # В крайнем случае просто убираем все теги, чтобы сообщение ушло
+                                report_caption = report_caption.replace("<b>", "").replace("</b>", "")
+
+                            # Отправляем через нашу новую функцию
                             import school_analysis.core.telegram_utils as tg_utils
                             success = tg_utils.send_report_with_chart(
                                 chat_id=parent_id,
-                                text=ai_text,
-                                fig=fig
+                                text=report_caption,
+                                fig=fig # Та самая переменная fig из вашего кода графиков
                             )
                             
                             if success:
+                                st.success("✅ Отчет с графиком успешно отправлен!")
                                 st.balloons()
-                                st.success("✨ Отчет успешно отправлен!")
+                else:
+                    st.warning("⚠️ Невозможно отправить отчет: в таблице 'students' не указан parent_id для этого ученика.")
 
     # ============================================================
     # 📊 СРАВНЕНИЕ КЛАССОВ И ПРЕДМЕТОВ + ДИНАМИКА (ТОЛЬКО СРЕДНИЙ %)

@@ -467,47 +467,58 @@ def show_analytics(df: pd.DataFrame, data: dict):
             # --- Настройки графика ---
             fig.update_layout(
                 title=dict(
-                    text=f"Предмет: <b>{subjects_title}</b> | Ученик: <b>{selected_student}</b><br>"
-                        f"<span style='font-size:0.85em;color:gray;'>Динамика на фоне среднего результата класса</span>",
-                    x=0.5, xanchor='center'
+                    text=f"<b>АНАЛИЗ ДИНАМИКИ: {subjects_title.upper()}</b><br>"
+                         f"<span style='font-size:12px; color:#666;'>Ученик: {selected_student} | Школа «Шамир»</span>",
+                    x=0.05, y=0.95, xanchor='left'
                 ),
                 yaxis=dict(
-                    title='% выполнения заданий',
-                    range=[0, 100],
-                    gridcolor='rgba(200,200,200,0.3)',
-                    zeroline=False
+                    title='Уровень освоения материала (%)',
+                    range=[0, 105],
+                    gridcolor='#F0F2F6',
+                    zeroline=False,
+                    ticksuffix="%"
                 ),
                 xaxis=dict(
-                    title='Месяц',
-                    tickmode='array',
-                    tickvals=month_order,
-                    ticktext=month_order,
-                    categoryorder='array',
-                    categoryarray=month_order
+                    title='',
+                    showgrid=False,
+                    tickfont=dict(size=12, color='#444')
                 ),
-                plot_bgcolor='white',
+                plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='white',
-                height=560,
-                margin=dict(t=100, b=40, l=60, r=40),
+                height=500,
+                margin=dict(t=100, b=100, l=60, r=40),
                 legend=dict(
                     orientation="h",
-                    yanchor="bottom", y=-0.35,
-                    xanchor="center", x=0.5,
-                    font=dict(size=12),
-                    title_text=""
-                ),
-                hoverlabel=dict(font_size=13, font_family="Arial"),
-                annotations=[
-                    dict(
-                        text="Школа «Шамир»",
-                        x=1, y=-0.15,
-                        xref="paper", yref="paper",
-                        showarrow=False,
-                        font=dict(size=11, color="gray"),
-                        xanchor="right"
-                    )
-                ]
+                    yanchor="bottom", y=-0.3,
+                    xanchor="center", x=0.5
+                )
             )
+
+            # --- Отображение в интерфейсе ---
+            st.markdown(f"## 📊 Индивидуальный профиль: {first_name}")
+            
+            col_chart, col_stat = st.columns([2, 1])
+
+            with col_chart:
+                st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+
+            with col_stat:
+                # Карточка ключевых метрик
+                st.markdown(f"""
+                <div style="background-color: #f8f9fa; padding: 20px; border-radius: 10px; border-left: 5px solid #007BFF;">
+                    <h4 style="margin-top:0;">Результаты по: {subjects_title}</h4>
+                    <p style="margin-bottom:5px;">Средний балл: <b>{mean_score}%</b></p>
+                    <p style="margin-top:0;">Тренд: <b>{'📈 +' if score_growth and score_growth > 0 else '📉 '}{score_growth}%</b></p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                st.write("") # Отступ
+                
+                # Анализ сильных и слабых сторон
+                if strong_tasks:
+                    st.success(f"**Сильные стороны:**\n\n" + ", ".join(strong_tasks[:3]))
+                if weak_tasks:
+                    st.warning(f"**Зоны внимания:**\n\n" + ", ".join(weak_tasks[:3]))
 
             # --- Раздел под графиком ---
             st.markdown("### 🧾 Индивидуальный отчёт ученика")
@@ -610,7 +621,7 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 parent_id = p_id_val[0] if len(p_id_val) > 0 else None
 
                 if parent_id and not pd.isna(parent_id):
-                    if st.button(f"💎 Отправить отчет по {subjects_title}", type="primary"):
+                    if st.button(f"💎 Сгенерировать AI-отчет по {subjects_title}", type="primary"):
                         with st.spinner("Искусственный интеллект анализирует успеваемость..."):
                             
                             # Подготовка списков для ИИ
@@ -633,7 +644,7 @@ def show_analytics(df: pd.DataFrame, data: dict):
                             
                             if success:
                                 st.balloons()
-                                st.success("✨ Отчет успешно отправлен!")
+                                st.success("✨ Премиум-отчет успешно отправлен!")
 
     # ============================================================
     # 📊 СРАВНЕНИЕ КЛАССОВ И ПРЕДМЕТОВ + ДИНАМИКА (ТОЛЬКО СРЕДНИЙ %)

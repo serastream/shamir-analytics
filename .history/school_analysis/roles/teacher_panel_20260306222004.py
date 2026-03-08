@@ -25,7 +25,6 @@ from school_analysis.analytics.learning_tempo import show_learning_tempo
 from school_analysis.analytics.influence_network import show_influence_network
 from school_analysis.analytics.topic_recommendations import generate_category_recommendations
 
-from school_analysis.core.telegram_utils import send_message
 
 @st.cache_data(show_spinner=False)
 def get_teacher_context_cached(df_c, top_n: int):
@@ -389,7 +388,24 @@ def show(df: pd.DataFrame):
 
         diagnostics.plot_class_task_performance(df_f)
 
-        
+        # Внутри твоей вкладки Диагностика
+        st.subheader("📩 Быстрая отправка отчета")
+
+        # Выбираем ученика
+        student_to_notify = st.selectbox("Кому отправить отчет?", df_f['student'].unique())
+
+        # Допустим, в твоем df_f есть колонка 'parent_id'
+        parent_id = df_f[df_f['student'] == student_to_notify]['parent_id'].iloc[0]
+
+        if st.button(f"Отправить отчет родителю ({student_to_notify})"):
+            if pd.isna(parent_id):
+                st.error("У этого ученика не указан ID родителя в таблице!")
+            else:
+                # Генерируем текст (как мы делали раньше через AI)
+                report_text = f"<b>Успехи ученика {student_to_notify}:</b>\nСредний балл: 85%"
+                
+                if send_simple_message(parent_id, report_text):
+                    st.success("Сообщение доставлено!")
         # ===========================================================
         # 🧠 РЕКОМЕНДАЦИИ ПО ПОДГОТОВКЕ (темы + задания) — компактный UX
         # ===========================================================

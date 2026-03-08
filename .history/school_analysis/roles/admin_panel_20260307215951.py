@@ -11,7 +11,7 @@ from school_analysis.core.attendance import attendance_widget
 from school_analysis.analytics.teacher_kpi import show_teacher_kpi
 #from school_analysis.analytics.forecast_utils import add_forecast_line
 import school_analysis.core.telegram_utils as tg_utils
-from school_analysis.core.telegram_utils import generate_ai_report
+
 # ============================================================ #
 #     ПАНЕЛЬ АДМИНИСТРАЦИИ
 # ============================================================ #
@@ -610,7 +610,7 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 parent_id = p_id_val[0] if len(p_id_val) > 0 else None
 
                 if parent_id and not pd.isna(parent_id):
-                    if st.button(f"💎 Отправить отчет по {subjects_title}", type="primary"):
+                    if st.button(f"💎 Сгенерировать AI-отчет по {subjects_title}", type="primary"):
                         with st.spinner("Искусственный интеллект анализирует успеваемость..."):
                             
                             # Подготовка списков для ИИ
@@ -633,7 +633,11 @@ def show_analytics(df: pd.DataFrame, data: dict):
                             
                             if success:
                                 st.balloons()
-                                st.success("✨ Отчет успешно отправлен!")
+                                st.success("✨ Премиум-отчет успешно отправлен!")
+                            except Exception as e:
+                                st.error(f"Ошибка ИИ: {e}. Отправляю стандартный отчет.")
+                                # Резервный вариант отправки без ИИ
+                                tg_utils.send_report_with_chart(chat_id=parent_id, text="Отчет готов", fig=fig)
 
     # ============================================================
     # 📊 СРАВНЕНИЕ КЛАССОВ И ПРЕДМЕТОВ + ДИНАМИКА (ТОЛЬКО СРЕДНИЙ %)

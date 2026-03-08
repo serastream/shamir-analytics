@@ -46,11 +46,17 @@ data = load_uploaded_excel(uploaded_file)
 
 df_results_summary = create_results_summary(data)
 
+# 2. Достаем колонку parent_id из листа 'students' (или как он у тебя называется)
 if 'students' in data:
-    # Оставляем только нужные колонки для склейки
     df_st_info = data['students'][['student', 'parent_id']].drop_duplicates()
-    # Приклеиваем parent_id к основной таблице по имени ученика
-    df_results_summary = pd.merge(df_results_summary, df_st_info, on='student', how='left')
+    
+    # 3. Приклеиваем parent_id к нашей основной таблице
+    df_results_summary = pd.merge(
+        df_results_summary, 
+        df_st_info, 
+        on='student', 
+        how='left'
+    )
 
 if df_results_summary.empty:
     st.error("❌ Не удалось сформировать агрегированные данные.")

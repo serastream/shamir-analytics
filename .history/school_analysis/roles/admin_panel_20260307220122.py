@@ -610,7 +610,7 @@ def show_analytics(df: pd.DataFrame, data: dict):
                 parent_id = p_id_val[0] if len(p_id_val) > 0 else None
 
                 if parent_id and not pd.isna(parent_id):
-                    if st.button(f"💎 Отправить отчет по {subjects_title}", type="primary"):
+                    if st.button(f"💎 Сгенерировать AI-отчет по {subjects_title}", type="primary"):
                         with st.spinner("Искусственный интеллект анализирует успеваемость..."):
                             
                             # Подготовка списков для ИИ
@@ -633,7 +633,7 @@ def show_analytics(df: pd.DataFrame, data: dict):
                             
                             if success:
                                 st.balloons()
-                                st.success("✨ Отчет успешно отправлен!")
+                                st.success("✨ Премиум-отчет успешно отправлен!")
 
     # ============================================================
     # 📊 СРАВНЕНИЕ КЛАССОВ И ПРЕДМЕТОВ + ДИНАМИКА (ТОЛЬКО СРЕДНИЙ %)
